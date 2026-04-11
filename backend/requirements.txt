@@ -1,0 +1,10 @@
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+tortoise-orm[asyncmy]==0.20.1
+pymysql==1.1.0
+python-multipart==0.0.6
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
+python-jose[cryptography]==3.3.0
+python-decouple==3.8
+aerich==0.7.2
