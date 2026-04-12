@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from tortoise.contrib.fastapi import register_tortoise
-from config import TORTOISE_ORM
+from config import BACKEND_CORS_ORIGINS, TORTOISE_ORM
 from routers import auth, bookings, cabins, finance, payments, routes, ships, users
 from schema_sync import (
     ensure_payment_split_columns,
@@ -15,10 +15,7 @@ app = FastAPI(title="Ship Booking API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=BACKEND_CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

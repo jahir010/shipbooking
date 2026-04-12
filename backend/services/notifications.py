@@ -5,7 +5,7 @@ import logging
 import smtplib
 from email.message import EmailMessage
 
-from config import DEFAULT_FROM_EMAIL, EMAIL_HOST, EMAIL_HOST_PASSWORD, EMAIL_HOST_USER
+from config import DEFAULT_FROM_EMAIL, EMAIL_HOST, EMAIL_HOST_PASSWORD, EMAIL_HOST_USER, EMAIL_PORT
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ def _send_email_sync(recipient: str, subject: str, body: str) -> None:
     message["Subject"] = subject
     message.set_content(body)
 
-    with smtplib.SMTP(EMAIL_HOST, 587, timeout=30) as smtp:
+    with smtplib.SMTP(EMAIL_HOST, EMAIL_PORT, timeout=30) as smtp:
         smtp.starttls()
         smtp.login(EMAIL_HOST_USER, EMAIL_HOST_PASSWORD)
         smtp.send_message(message)
