@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Copy, Download, Eye, Ticket } from 'lucide-react';
@@ -32,7 +32,7 @@ const getStatusVariant = (status: Booking['status']) => {
   }
 };
 
-export default function CustomerBookingsPage() {
+function CustomerBookingsContent() {
   const searchParams = useSearchParams();
   const { user } = useAuthStore();
   const { bookings, loading: bookingsLoading, fetchBookings, cancelBooking } = useBookingStore();
@@ -303,5 +303,21 @@ export default function CustomerBookingsPage() {
         ) : null}
       </Modal>
     </div>
+  );
+}
+
+export default function CustomerBookingsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className='page-shell min-h-screen px-4 py-6 lg:px-8 lg:py-8'>
+          <div className='mx-auto max-w-7xl'>
+            <Card className='p-12 text-center text-slate-500'>Loading your bookings...</Card>
+          </div>
+        </div>
+      }
+    >
+      <CustomerBookingsContent />
+    </Suspense>
   );
 }
