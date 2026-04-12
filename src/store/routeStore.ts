@@ -4,6 +4,10 @@ import { create } from 'zustand';
 import { Route } from '@/types';
 import { apiFetch, ApiRoutePayload, mapApiRoute } from '@/lib/api';
 
+interface RouteFetchOptions {
+  includePast?: boolean;
+}
+
 interface RouteCreateInput {
   shipId: string;
   departurePort: string;
@@ -21,7 +25,7 @@ interface RouteCreateInput {
 interface RouteState {
   routes: Route[];
   loading: boolean;
-  fetchRoutes: () => Promise<void>;
+  fetchRoutes: (options?: RouteFetchOptions) => Promise<void>;
   addRoute: (route: RouteCreateInput) => Promise<Route>;
   removeRoute: (routeId: string) => Promise<void>;
 }
@@ -30,10 +34,11 @@ export const useRouteStore = create<RouteState>((set) => ({
   routes: [],
   loading: false,
 
-  fetchRoutes: async () => {
+  fetchRoutes: async (options) => {
     set({ loading: true });
     try {
-      const data = await apiFetch<ApiRoutePayload[]>('/routes', { auth: false });
+      const query = options?.includePast ? '?include_past=true' : '';
+      const data = await apiFetch<ApiRoutePayload[]>(`/routes${query}`, { auth: false });
       set({ routes: data.map(mapApiRoute) });
     } finally {
       set({ loading: false });

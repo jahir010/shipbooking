@@ -1,6 +1,6 @@
 'use client';
 
-import { Booking, Cabin, Passenger, Route, Ship, User, UserRecord } from '@/types';
+import { Booking, Cabin, FinanceSummary, Passenger, Route, Ship, User, UserRecord, Withdrawal } from '@/types';
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:8000/api';
 
@@ -10,6 +10,7 @@ export interface ApiUserPayload {
   first_name: string;
   last_name: string;
   role: User['role'];
+  status?: User['status'];
   created_at?: string | null;
 }
 
@@ -18,6 +19,7 @@ export interface ApiShipPayload {
   name: string;
   operator: string;
   owner_id: number;
+  commission_rate?: number;
   image: string;
   description: string;
   rating: number;
@@ -51,6 +53,15 @@ export interface ApiCabinPayload {
   amenities: string[];
 }
 
+export interface ApiCabinHoldPayload {
+  id: number;
+  route_id: number;
+  cabin_id: number;
+  status: string;
+  expires_at: string;
+  hold_duration_minutes: number;
+}
+
 export interface ApiBookingItemPayload {
   cabin_id: number;
   cabin_type: Booking['items'][number]['cabinType'];
@@ -80,6 +91,35 @@ export interface ApiBookingPayload {
   status: Booking['status'];
   passengers: ApiPassengerPayload[];
   created_at?: string | null;
+  payment_status?: Booking['paymentStatus'];
+  invoice_available?: boolean;
+  invoice_number?: string | null;
+}
+
+export interface ApiCreateBookingResponse {
+  message: string;
+  booking: ApiBookingPayload;
+  payment_url?: string | null;
+  payment_status?: string | null;
+}
+
+export interface ApiFinanceSummaryPayload {
+  gross_earnings: number;
+  platform_commission: number;
+  shipowner_earnings: number;
+  pending_withdrawals: number;
+  completed_withdrawals: number;
+  available_to_withdraw: number;
+}
+
+export interface ApiWithdrawalPayload {
+  id: number;
+  shipowner_id: number;
+  amount: number;
+  status: Withdrawal['status'];
+  note?: string | null;
+  created_at?: string | null;
+  processed_at?: string | null;
 }
 
 const isFormData = (body: BodyInit | null | undefined): body is FormData =>
@@ -132,12 +172,80 @@ export const apiFetch = async <T>(
   return response.json() as Promise<T>;
 };
 
+const getFilenameFromDisposition = (value: string | null) => {
+  if (!value) {
+    return null;
+  }
+  const match = value.match(/filename="?([^"]+)"?/i);
+  return match?.[1] ?? null;
+};
+
+export const downloadBookingInvoice = async (bookingId: string) => {
+  const headers = new Headers();
+  const token = getAccessToken();
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  const response = await fetch(`${API_BASE}/bookings/${bookingId}/invoice`, {
+    method: 'GET',
+    headers,
+  });
+
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, 'Failed to download invoice'));
+  }
+
+  const blob = await response.blob();
+  const downloadUrl = window.URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = downloadUrl;
+  anchor.download =
+    getFilenameFromDisposition(response.headers.get('Content-Disposition')) ??
+    `booking-${bookingId}-invoice.html`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.URL.revokeObjectURL(downloadUrl);
+};
+
+export const createCabinHold = (routeId: string, cabinId: string) =>
+  apiFetch<ApiCabinHoldPayload>('/cabin-holds', {
+    method: 'POST',
+    body: JSON.stringify({
+      route_id: Number(routeId),
+      cabin_id: Number(cabinId),
+    }),
+  });
+
+export const releaseCabinHold = (routeId: string, cabinId: string) =>
+  apiFetch<{ message: string }>(`/cabin-holds?route_id=${routeId}&cabin_id=${cabinId}`, {
+    method: 'DELETE',
+  });
+
+export const getFinanceSummary = () => apiFetch<ApiFinanceSummaryPayload>('/finance/summary');
+
+export const getWithdrawals = () => apiFetch<ApiWithdrawalPayload[]>('/withdrawals');
+
+export const createWithdrawal = (amount: number, note?: string) =>
+  apiFetch<{ message: string; withdrawal: ApiWithdrawalPayload }>('/withdrawals', {
+    method: 'POST',
+    body: JSON.stringify({ amount, note }),
+  });
+
+export const updateWithdrawal = (withdrawalId: string, status: Withdrawal['status'], note?: string) =>
+  apiFetch<{ message: string; withdrawal: ApiWithdrawalPayload }>(`/withdrawals/${withdrawalId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ status, note }),
+  });
+
 export const mapApiUser = (apiUser: ApiUserPayload): User => ({
   id: apiUser.id.toString(),
   email: apiUser.email,
   name: [apiUser.first_name, apiUser.last_name].filter(Boolean).join(' ').trim(),
   phone: '',
   role: apiUser.role,
+  status: apiUser.status ?? 'active',
   createdAt: apiUser.created_at || new Date().toISOString(),
 });
 
@@ -152,6 +260,7 @@ export const mapApiShip = (ship: ApiShipPayload): Ship => ({
   name: ship.name,
   operator: ship.operator,
   ownerId: ship.owner_id.toString(),
+  commissionRate: ship.commission_rate ?? 0,
   image: ship.image || '',
   description: ship.description || '',
   cabins: [],
@@ -159,6 +268,25 @@ export const mapApiShip = (ship: ApiShipPayload): Ship => ({
   reviews: ship.review_count || 0,
   createdAt: ship.created_at || new Date().toISOString(),
   updatedAt: ship.created_at || new Date().toISOString(),
+});
+
+export const mapApiFinanceSummary = (summary: ApiFinanceSummaryPayload): FinanceSummary => ({
+  grossEarnings: summary.gross_earnings,
+  platformCommission: summary.platform_commission,
+  shipownerEarnings: summary.shipowner_earnings,
+  pendingWithdrawals: summary.pending_withdrawals,
+  completedWithdrawals: summary.completed_withdrawals,
+  availableToWithdraw: summary.available_to_withdraw,
+});
+
+export const mapApiWithdrawal = (withdrawal: ApiWithdrawalPayload): Withdrawal => ({
+  id: withdrawal.id.toString(),
+  shipownerId: withdrawal.shipowner_id.toString(),
+  amount: withdrawal.amount,
+  status: withdrawal.status,
+  note: withdrawal.note ?? null,
+  createdAt: withdrawal.created_at || new Date().toISOString(),
+  processedAt: withdrawal.processed_at ?? null,
 });
 
 export const mapApiRoute = (route: ApiRoutePayload): Route => ({
@@ -216,6 +344,9 @@ export const mapApiBooking = (booking: ApiBookingPayload): Booking => ({
   totalPrice: booking.total_price,
   status: booking.status,
   passengers: booking.passengers.map(mapApiPassenger),
+  paymentStatus: booking.payment_status ?? null,
+  invoiceAvailable: booking.invoice_available ?? false,
+  invoiceNumber: booking.invoice_number ?? null,
   createdAt: booking.created_at || new Date().toISOString(),
   updatedAt: booking.created_at || new Date().toISOString(),
 });

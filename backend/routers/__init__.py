@@ -1,1 +1,1 @@
-from . import auth, ships, routes, cabins, bookings, users
+from . import auth, bookings, cabins, finance, payments, routes, ships, users

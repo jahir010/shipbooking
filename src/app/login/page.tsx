@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useAuthStore } from '@/store/authStore';
+import { useRouter } from 'next/navigation';
+import { ArrowRight, LockKeyhole, ShieldCheck } from 'lucide-react';
+import { toast } from 'react-toastify';
+import AuthShell from '@/components/auth/AuthShell';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
-import Card from '@/components/ui/Card';
-import { toast } from 'react-toastify';
+import { useAuthStore } from '@/store/authStore';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,20 +17,19 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     if (!email || !password) {
-      toast.error('Please fill in all fields');
+      toast.error('Please enter both email and password');
       return;
     }
 
     setLoading(true);
     try {
       await login(email, password);
-      toast.success('Login successful!');
-      
       const user = useAuthStore.getState().user;
+      toast.success('Welcome back');
+
       if (user) {
         const dashboardMap = {
           customer: '/customer/dashboard',
@@ -39,94 +39,95 @@ export default function LoginPage() {
         router.push(dashboardMap[user.role]);
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Login failed. Please check your credentials.');
+      toast.error(error instanceof Error ? error.message : 'Login failed');
     } finally {
       setLoading(false);
     }
   };
 
-  const fillDemoCredentials = (demoRole: 'customer' | 'shipowner' | 'admin') => {
-    setEmail(`${demoRole}@example.com`);
-    setPassword('demo123');
-  };
-
   return (
-    <div className='min-h-screen bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center p-4'>
-      <Card className='w-full max-w-md'>
-        <div className='p-8'>
-          <div className='flex items-center gap-2 mb-6'>
-            <span className='text-3xl'>⚓</span>
-            <h1 className='text-2xl font-bold'>ShipBook</h1>
-          </div>
-
-          <h2 className='text-xl font-semibold mb-6'>Login</h2>
-
-          <form onSubmit={handleSubmit} className='space-y-4'>
-            <Input
-              type='email'
-              label='Email Address'
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder='you@example.com'
-              disabled={loading}
-            />
-
-            <Input
-              type='password'
-              label='Password'
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder='Enter your password'
-              disabled={loading}
-            />
-            <Button
-              type='submit'
-              fullWidth
-              disabled={loading}
-              size='lg'
+    <AuthShell
+      eyebrow='Member access'
+      title='Return to the'
+      accent='voyage desk'
+      description='Sign in to manage bookings, operations, and partner activity from the same platform your passengers rely on.'
+      footer={
+        <div className='space-y-3 text-center text-sm text-slate-600'>
+          <p>
+            New passenger?{' '}
+            <Link href='/signup' className='font-semibold text-[#0f3b68] hover:text-[#1d7e93]'>
+              Create a customer account
+            </Link>
+          </p>
+          <p>
+            Running a vessel?{' '}
+            <Link
+              href='/signup/shipowner'
+              className='font-semibold text-[#0f3b68] hover:text-[#1d7e93]'
             >
-              {loading ? 'Logging in...' : 'Login'}
-            </Button>
-          </form>
-
-          <div className='mt-6 pt-6 border-t'>
-            <p className='text-sm text-gray-600 mb-3'>Demo Accounts:</p>
-            <div className='space-y-2'>
-              <Button
-                variant='secondary'
-                fullWidth
-                onClick={() => fillDemoCredentials('customer')}
-                disabled={loading}
-              >
-                Demo Customer
-              </Button>
-              <Button
-                variant='secondary'
-                fullWidth
-                onClick={() => fillDemoCredentials('shipowner')}
-                disabled={loading}
-              >
-                Demo Ship Owner
-              </Button>
-              <Button
-                variant='secondary'
-                fullWidth
-                onClick={() => fillDemoCredentials('admin')}
-                disabled={loading}
-              >
-                Demo Admin
-              </Button>
-            </div>
-          </div>
-
-          <p className='mt-6 text-center text-sm text-gray-600'>
-            Don&apos;t have an account?{' '}
-            <Link href='/signup' className='text-blue-600 font-semibold hover:underline'>
-              Sign up here
+              Open a shipowner account
             </Link>
           </p>
         </div>
-      </Card>
-    </div>
+      }
+    >
+      <div className='rounded-[1.5rem] border border-[#d9e8ec] bg-[#eef7f8] p-4'>
+        <div className='flex items-start gap-3'>
+          <div className='flex h-11 w-11 items-center justify-center rounded-2xl bg-[#0f3b68] text-white'>
+            <LockKeyhole size={20} />
+          </div>
+          <div>
+            <p className='text-sm font-semibold uppercase tracking-[0.22em] text-[#1d7e93]'>
+              Secure sign in
+            </p>
+            <p className='mt-1 text-sm leading-6 text-slate-600'>
+              Role-aware routing takes you directly to your customer, shipowner, or admin workspace.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} className='mt-6 space-y-4'>
+        <Input
+          type='email'
+          label='Email address'
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          placeholder='captain@company.com'
+          disabled={loading}
+          className='rounded-2xl border-slate-200 bg-white/90 px-4 py-3'
+        />
+        <Input
+          type='password'
+          label='Password'
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          placeholder='Enter your password'
+          disabled={loading}
+          className='rounded-2xl border-slate-200 bg-white/90 px-4 py-3'
+        />
+
+        <div className='rounded-[1.5rem] border border-slate-200 bg-[#f7f8f8] p-4 text-sm text-slate-600'>
+          <div className='flex items-start gap-3'>
+            <ShieldCheck size={18} className='mt-1 text-[#1d7e93]' />
+            <p>
+              Demo credentials have been removed. Suspended accounts are blocked from signing in
+              until an administrator reactivates them.
+            </p>
+          </div>
+        </div>
+
+        <Button
+          type='submit'
+          fullWidth
+          size='lg'
+          disabled={loading}
+          className='rounded-2xl bg-[#0f3b68] py-3 text-white hover:bg-[#0a2c4f]'
+        >
+          {loading ? 'Signing in...' : 'Sign in'}
+          {!loading ? <ArrowRight size={18} /> : null}
+        </Button>
+      </form>
+    </AuthShell>
   );
 }

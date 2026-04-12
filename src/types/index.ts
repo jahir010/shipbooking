@@ -1,5 +1,6 @@
 // User types
 export type UserRole = 'customer' | 'shipowner' | 'admin';
+export type UserStatus = 'active' | 'suspended';
 
 export interface User {
   id: string;
@@ -7,6 +8,7 @@ export interface User {
   name: string;
   phone: string;
   role: UserRole;
+  status: UserStatus;
   createdAt: string;
 }
 
@@ -41,6 +43,7 @@ export interface Ship {
   name: string;
   operator: string;
   ownerId: string;
+  commissionRate: number;
   image: string;
   description: string;
   cabins: Cabin[];
@@ -84,6 +87,9 @@ export interface Booking {
   totalPrice: number;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
   passengers: Passenger[];
+  paymentStatus?: Payment['status'] | null;
+  invoiceAvailable: boolean;
+  invoiceNumber?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -105,10 +111,29 @@ export interface Payment {
   id: string;
   bookingId: string;
   amount: number;
-  method: 'card' | 'bkash' | 'nagad' | 'rocket' | 'upay';
-  status: 'pending' | 'completed' | 'failed';
+  method: 'sslcommerz' | 'card' | 'bkash' | 'nagad' | 'rocket' | 'upay';
+  status: 'pending' | 'completed' | 'failed' | 'cancelled';
   transactionId: string;
   createdAt: string;
+}
+
+export interface FinanceSummary {
+  grossEarnings: number;
+  platformCommission: number;
+  shipownerEarnings: number;
+  pendingWithdrawals: number;
+  completedWithdrawals: number;
+  availableToWithdraw: number;
+}
+
+export interface Withdrawal {
+  id: string;
+  shipownerId: string;
+  amount: number;
+  status: 'pending' | 'completed' | 'rejected';
+  note?: string | null;
+  createdAt: string;
+  processedAt?: string | null;
 }
 
 // Review types

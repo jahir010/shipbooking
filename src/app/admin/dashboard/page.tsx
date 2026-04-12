@@ -2,19 +2,29 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { CheckCircle2, Plus, Trash2 } from 'lucide-react';
+import { Ban, CheckCircle2, Download, Landmark, Pencil, Plus, ShieldCheck, Trash2, UserPlus } from 'lucide-react';
 import { toast } from 'react-toastify';
+import {
+  downloadBookingInvoice,
+  getFinanceSummary,
+  getWithdrawals,
+  mapApiFinanceSummary,
+  mapApiWithdrawal,
+  updateWithdrawal,
+} from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
 import { useBookingStore } from '@/store/bookingStore';
 import { useCabinStore } from '@/store/cabinStore';
 import { useRouteStore } from '@/store/routeStore';
 import { useShipStore } from '@/store/shipStore';
 import { useUserStore } from '@/store/userStore';
-import { Booking, CabinType } from '@/types';
+import { Booking, CabinType, FinanceSummary, UserRecord, UserRole, UserStatus, Withdrawal } from '@/types';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
+import PageHero from '@/components/layout/PageHero';
 import Input from '@/components/ui/Input';
+import ImageUpload from '@/components/ui/ImageUpload';
 import Modal from '@/components/ui/Modal';
 import Select from '@/components/ui/Select';
 import { CABIN_TYPES } from '@/lib/mockData';
@@ -60,11 +70,13 @@ export default function AdminDashboard() {
     updateBookingStatus,
     deleteBooking,
   } = useBookingStore();
-  const { users, loading: usersLoading, fetchUsers } = useUserStore();
+  const { users, loading: usersLoading, fetchUsers, createUser, updateUser, deleteUser } = useUserStore();
 
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
   const [showShipModal, setShowShipModal] = useState(false);
   const [showRouteModal, setShowRouteModal] = useState(false);
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [shipForm, setShipForm] = useState({
     name: '',
     operator: '',
@@ -89,11 +101,21 @@ export default function AdminDashboard() {
     capacity: '1',
     basePrice: '',
   });
+  const [userForm, setUserForm] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    password: '',
+    role: 'shipowner' as UserRole,
+    status: 'active' as UserStatus,
+  });
+  const [financeSummary, setFinanceSummary] = useState<FinanceSummary | null>(null);
+  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
 
   useEffect(() => {
     Promise.all([
       fetchShips(),
-      fetchRoutes(),
+      fetchRoutes({ includePast: true }),
       fetchCabins(),
       fetchBookings(),
       fetchUsers(),
@@ -102,13 +124,19 @@ export default function AdminDashboard() {
     });
   }, [fetchBookings, fetchCabins, fetchRoutes, fetchShips, fetchUsers]);
 
+  useEffect(() => {
+    Promise.all([getFinanceSummary(), getWithdrawals()])
+      .then(([summary, withdrawalData]) => {
+        setFinanceSummary(mapApiFinanceSummary(summary));
+        setWithdrawals(withdrawalData.map(mapApiWithdrawal));
+      })
+      .catch((error: unknown) => {
+        toast.error(error instanceof Error ? error.message : 'Failed to load finance data');
+      });
+  }, []);
+
   const isLoading =
     shipsLoading || routesLoading || cabinsLoading || bookingsLoading || usersLoading;
-
-  const confirmedBookings = useMemo(
-    () => bookings.filter((booking) => booking.status === 'confirmed').length,
-    [bookings],
-  );
 
   const totalRevenue = useMemo(
     () => bookings.reduce((sum, booking) => sum + booking.totalPrice, 0),
@@ -118,6 +146,21 @@ export default function AdminDashboard() {
   const usersById = useMemo(() => {
     return new Map(users.map((record) => [record.id, record]));
   }, [users]);
+
+  const upcomingRoutes = useMemo(
+    () => routes.filter((route) => route.status === 'active'),
+    [routes],
+  );
+
+  const activeUsers = useMemo(
+    () => users.filter((record) => record.status === 'active').length,
+    [users],
+  );
+
+  const shipownerUsers = useMemo(
+    () => users.filter((record) => record.role === 'shipowner').length,
+    [users],
+  );
 
   if (!user || user.role !== 'admin') {
     return (
@@ -284,16 +327,151 @@ export default function AdminDashboard() {
     }
   };
 
-  return (
-    <div className='min-h-screen bg-gray-50'>
-      <div className='bg-gradient-to-r from-slate-900 to-blue-700 text-white py-8 px-4'>
-        <div className='max-w-7xl mx-auto'>
-          <h1 className='text-3xl font-bold'>Admin Dashboard</h1>
-          <p className='text-slate-200 mt-2'>Monitor the platform and manage live data.</p>
-        </div>
-      </div>
+  const handleDownloadInvoice = async (booking: Booking) => {
+    try {
+      await downloadBookingInvoice(booking.id);
+      toast.success(
+        booking.invoiceNumber ? `Invoice ${booking.invoiceNumber} downloaded` : 'Invoice downloaded',
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to download invoice');
+    }
+  };
 
-      <div className='max-w-7xl mx-auto px-4 py-8'>
+  const resetUserForm = () => {
+    setUserForm({
+      firstName: '',
+      lastName: '',
+      email: '',
+      password: '',
+      role: 'shipowner',
+      status: 'active',
+    });
+    setEditingUserId(null);
+  };
+
+  const openCreateUserModal = () => {
+    resetUserForm();
+    setShowUserModal(true);
+  };
+
+  const openEditUserModal = (record: UserRecord) => {
+    setEditingUserId(record.id);
+    setUserForm({
+      firstName: record.firstName,
+      lastName: record.lastName,
+      email: record.email,
+      password: '',
+      role: record.role,
+      status: record.status,
+    });
+    setShowUserModal(true);
+  };
+
+  const closeUserModal = () => {
+    setShowUserModal(false);
+    resetUserForm();
+  };
+
+  const handleSaveUser = async () => {
+    if (!userForm.firstName.trim() || !userForm.email.trim()) {
+      toast.error('First name and email are required');
+      return;
+    }
+
+    if (!editingUserId && userForm.password.trim().length < 6) {
+      toast.error('New users need a password with at least 6 characters');
+      return;
+    }
+
+    try {
+      if (editingUserId) {
+        await updateUser(editingUserId, {
+          firstName: userForm.firstName,
+          lastName: userForm.lastName,
+          role: userForm.role,
+          status: userForm.status,
+          password: userForm.password.trim() ? userForm.password : undefined,
+        });
+        toast.success('User updated successfully');
+      } else {
+        await createUser({
+          firstName: userForm.firstName,
+          lastName: userForm.lastName,
+          email: userForm.email,
+          password: userForm.password,
+          role: userForm.role,
+          status: userForm.status,
+        });
+        toast.success('User created successfully');
+      }
+      closeUserModal();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to save user');
+    }
+  };
+
+  const handleToggleUserStatus = async (record: UserRecord) => {
+    const nextStatus: UserStatus = record.status === 'active' ? 'suspended' : 'active';
+    try {
+      await updateUser(record.id, { status: nextStatus });
+      toast.success(
+        nextStatus === 'active' ? 'User reactivated successfully' : 'User suspended successfully',
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update user status');
+    }
+  };
+
+  const handleDeleteUser = async (record: UserRecord) => {
+    if (!window.confirm(`Delete ${record.name}? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      await deleteUser(record.id);
+      toast.success('User deleted successfully');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to delete user');
+    }
+  };
+
+  const handleWithdrawalDecision = async (withdrawal: Withdrawal, status: Withdrawal['status']) => {
+    try {
+      const response = await updateWithdrawal(withdrawal.id, status);
+      const updatedRecord = mapApiWithdrawal(response.withdrawal);
+      setWithdrawals((current) =>
+        current.map((item) => (item.id === updatedRecord.id ? updatedRecord : item)),
+      );
+      const refreshedSummary = await getFinanceSummary();
+      setFinanceSummary(mapApiFinanceSummary(refreshedSummary));
+      toast.success(`Withdrawal ${status}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update withdrawal');
+    }
+  };
+
+  return (
+    <div className='page-shell min-h-screen px-4 py-6 lg:px-8 lg:py-8'>
+      <div className='mx-auto max-w-7xl'>
+        <PageHero
+          eyebrow='Platform control'
+          title='Admin operations with a stronger product rhythm.'
+          description='Monitor revenue, manage vessels, control accounts, and keep the entire platform visually aligned with the public experience.'
+          actions={
+            <Button onClick={openCreateUserModal}>
+              <UserPlus size={18} />
+              Add User
+            </Button>
+          }
+          stats={[
+            { label: 'Revenue', value: formatCurrency(financeSummary?.grossEarnings ?? totalRevenue) },
+            { label: 'Active Users', value: activeUsers },
+            { label: 'Shipowners', value: shipownerUsers },
+          ]}
+        />
+
+        <div className='py-8'>
         <div className='flex flex-wrap gap-3 mb-6'>
           {(['overview', 'ships', 'routes', 'cabins', 'bookings', 'users'] as AdminTab[]).map(
             (tab) => (
@@ -323,10 +501,10 @@ export default function AdminDashboard() {
           <div className='space-y-8'>
             <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4'>
               {[
-                { label: 'Total Revenue', value: formatCurrency(totalRevenue) },
+                { label: 'Gross Revenue', value: formatCurrency(financeSummary?.grossEarnings ?? totalRevenue) },
                 { label: 'Ships', value: ships.length },
-                { label: 'Bookings', value: bookings.length },
-                { label: 'Confirmed', value: confirmedBookings },
+                { label: 'Active Users', value: activeUsers },
+                { label: 'Platform Commission', value: formatCurrency(financeSummary?.platformCommission ?? 0) },
               ].map((stat) => (
                 <Card key={stat.label} className='p-6'>
                   <p className='text-sm text-gray-500'>{stat.label}</p>
@@ -363,13 +541,49 @@ export default function AdminDashboard() {
                       <p className='font-semibold'>{record.name}</p>
                       <p className='text-sm text-gray-600'>{record.email}</p>
                       <p className='text-xs text-gray-500 mt-1'>
-                        {record.role} joined {formatDate(record.createdAt)}
+                        {record.role} and {record.status} since {formatDate(record.createdAt)}
                       </p>
                     </div>
                   ))}
                 </div>
               </Card>
             </div>
+
+            {withdrawals.length > 0 ? (
+              <Card className='p-6'>
+                <div className='flex items-center gap-3 mb-4'>
+                  <Landmark size={20} className='text-[#1d7e93]' />
+                  <h2 className='text-xl font-bold text-[#0f3b68]'>Withdrawal Requests</h2>
+                </div>
+                <div className='space-y-4'>
+                  {withdrawals.slice(0, 5).map((withdrawal) => (
+                    <div key={withdrawal.id} className='rounded-[1.5rem] bg-[#f7fafb] p-4'>
+                      <div className='flex flex-col gap-4 md:flex-row md:items-center md:justify-between'>
+                        <div>
+                          <p className='font-semibold text-[#0f3b68]'>{formatCurrency(withdrawal.amount)}</p>
+                          <p className='text-sm text-slate-500'>{withdrawal.note || 'No note attached'}</p>
+                        </div>
+                        <div className='flex flex-wrap gap-2'>
+                          <Badge variant={withdrawal.status === 'completed' ? 'success' : withdrawal.status === 'rejected' ? 'danger' : 'warning'}>
+                            {withdrawal.status}
+                          </Badge>
+                          {withdrawal.status === 'pending' ? (
+                            <>
+                              <Button variant='success' onClick={() => void handleWithdrawalDecision(withdrawal, 'completed')}>
+                                Approve
+                              </Button>
+                              <Button variant='danger' onClick={() => void handleWithdrawalDecision(withdrawal, 'rejected')}>
+                                Reject
+                              </Button>
+                            </>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            ) : null}
           </div>
         )}
 
@@ -418,30 +632,38 @@ export default function AdminDashboard() {
               </Button>
             </div>
 
-            <div className='space-y-4'>
-              {routes.map((route) => {
-                const ship = ships.find((item) => item.id === route.shipId);
-                return (
-                  <Card key={route.id} className='p-6'>
-                    <div className='flex flex-col md:flex-row md:items-center justify-between gap-4'>
-                      <div>
-                        <h3 className='text-lg font-bold'>{ship?.name || 'Unknown ship'}</h3>
-                        <p className='text-sm text-gray-600'>
-                          {route.departurePort} to {route.destinationPort}
-                        </p>
-                        <p className='text-sm text-gray-500 mt-2'>
-                          {formatDate(route.date)} and {formatCurrency(route.basePrice)}
-                        </p>
+            {upcomingRoutes.length === 0 ? (
+              <Card className='p-12 text-center'>
+                <p className='text-gray-500'>
+                  {ships.length === 0 ? 'Add a ship before creating routes.' : 'No upcoming routes scheduled yet.'}
+                </p>
+              </Card>
+            ) : (
+              <div className='space-y-4'>
+                {upcomingRoutes.map((route) => {
+                  const ship = ships.find((item) => item.id === route.shipId);
+                  return (
+                    <Card key={route.id} className='p-6'>
+                      <div className='flex flex-col md:flex-row md:items-center justify-between gap-4'>
+                        <div>
+                          <h3 className='text-lg font-bold'>{ship?.name || 'Unknown ship'}</h3>
+                          <p className='text-sm text-gray-600'>
+                            {route.departurePort} to {route.destinationPort}
+                          </p>
+                          <p className='text-sm text-gray-500 mt-2'>
+                            {formatDate(route.date)} and {formatCurrency(route.basePrice)}
+                          </p>
+                        </div>
+                        <Button variant='danger' onClick={() => void handleDeleteRoute(route.id)}>
+                          <Trash2 size={16} />
+                          Delete
+                        </Button>
                       </div>
-                      <Button variant='danger' onClick={() => void handleDeleteRoute(route.id)}>
-                        <Trash2 size={16} />
-                        Delete
-                      </Button>
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
@@ -555,6 +777,15 @@ export default function AdminDashboard() {
                       </div>
 
                       <div className='flex gap-2'>
+                        {booking.invoiceAvailable ? (
+                          <Button
+                            variant='secondary'
+                            onClick={() => void handleDownloadInvoice(booking)}
+                          >
+                            <Download size={16} />
+                            Invoice
+                          </Button>
+                        ) : null}
                         {booking.status === 'pending' ? (
                           <Button
                             variant='success'
@@ -582,18 +813,67 @@ export default function AdminDashboard() {
 
         {!isLoading && activeTab === 'users' && (
           <div>
-            <h2 className='text-2xl font-bold mb-6'>Users</h2>
+            <div className='mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between'>
+              <div>
+                <h2 className='text-2xl font-bold'>Users</h2>
+                <p className='mt-2 text-sm text-gray-600'>
+                  Create internal accounts, assign roles, and suspend access when needed.
+                </p>
+              </div>
+              <Button onClick={openCreateUserModal}>
+                <UserPlus size={18} />
+                Add User
+              </Button>
+            </div>
             <div className='space-y-4'>
               {users.map((record) => (
                 <Card key={record.id} className='p-6'>
-                  <div className='flex flex-col md:flex-row md:items-center justify-between gap-4'>
+                  <div className='flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between'>
                     <div>
                       <h3 className='text-lg font-bold'>{record.name}</h3>
                       <p className='text-sm text-gray-600'>{record.email}</p>
+                      <div className='mt-3 flex flex-wrap gap-2'>
+                        <span className='rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-600'>
+                          {record.role}
+                        </span>
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${
+                            record.status === 'active'
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-amber-100 text-amber-700'
+                          }`}
+                        >
+                          {record.status}
+                        </span>
+                      </div>
                     </div>
-                    <div className='text-sm text-gray-500'>
-                      <p className='font-semibold text-gray-700'>{record.role}</p>
-                      <p>Joined {formatDate(record.createdAt)}</p>
+                    <div className='flex flex-col gap-3 md:flex-row md:items-center'>
+                      <div className='text-sm text-gray-500'>
+                        <p>Joined {formatDate(record.createdAt)}</p>
+                      </div>
+                      <Button
+                        variant='secondary'
+                        onClick={() => openEditUserModal(record)}
+                      >
+                        <Pencil size={16} />
+                        Edit
+                      </Button>
+                      <Button
+                        variant='secondary'
+                        onClick={() => void handleToggleUserStatus(record)}
+                        disabled={record.id === user.id}
+                      >
+                        {record.status === 'active' ? <Ban size={16} /> : <ShieldCheck size={16} />}
+                        {record.status === 'active' ? 'Suspend' : 'Activate'}
+                      </Button>
+                      <Button
+                        variant='danger'
+                        onClick={() => void handleDeleteUser(record)}
+                        disabled={record.id === user.id}
+                      >
+                        <Trash2 size={16} />
+                        Delete
+                      </Button>
                     </div>
                   </div>
                 </Card>
@@ -601,6 +881,7 @@ export default function AdminDashboard() {
             </div>
           </div>
         )}
+        </div>
       </div>
 
       <Modal isOpen={showShipModal} onClose={() => setShowShipModal(false)} title='Add Ship'>
@@ -619,12 +900,13 @@ export default function AdminDashboard() {
               setShipForm((current) => ({ ...current, operator: event.target.value }))
             }
           />
-          <Input
-            label='Image URL'
+          <ImageUpload
+            label='Ship Image'
             value={shipForm.image}
-            onChange={(event) =>
-              setShipForm((current) => ({ ...current, image: event.target.value }))
+            onChange={(value) =>
+              setShipForm((current) => ({ ...current, image: value }))
             }
+            helperText='Upload a local image or paste an image URL.'
           />
           <Input
             label='Description'
@@ -728,6 +1010,89 @@ export default function AdminDashboard() {
             </Button>
             <Button fullWidth onClick={() => void handleAddRoute()}>
               Save Route
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={showUserModal}
+        onClose={closeUserModal}
+        title={editingUserId ? 'Edit User' : 'Add User'}
+      >
+        <div className='space-y-4'>
+          <div className='grid gap-4 md:grid-cols-2'>
+            <Input
+              label='First Name'
+              value={userForm.firstName}
+              onChange={(event) =>
+                setUserForm((current) => ({ ...current, firstName: event.target.value }))
+              }
+            />
+            <Input
+              label='Last Name'
+              value={userForm.lastName}
+              onChange={(event) =>
+                setUserForm((current) => ({ ...current, lastName: event.target.value }))
+              }
+            />
+          </div>
+
+          <Input
+            type='email'
+            label='Email'
+            value={userForm.email}
+            onChange={(event) =>
+              setUserForm((current) => ({ ...current, email: event.target.value }))
+            }
+            disabled={Boolean(editingUserId)}
+            helperText={
+              editingUserId ? 'Email remains locked after creation to preserve account identity.' : undefined
+            }
+          />
+
+          <Input
+            type='password'
+            label={editingUserId ? 'Reset Password' : 'Password'}
+            value={userForm.password}
+            onChange={(event) =>
+              setUserForm((current) => ({ ...current, password: event.target.value }))
+            }
+            helperText={editingUserId ? 'Leave blank to keep the current password.' : undefined}
+          />
+
+          <div className='grid gap-4 md:grid-cols-2'>
+            <Select
+              label='Role'
+              value={userForm.role}
+              onChange={(event) =>
+                setUserForm((current) => ({ ...current, role: event.target.value as UserRole }))
+              }
+              options={[
+                { value: 'customer', label: 'Customer' },
+                { value: 'shipowner', label: 'Shipowner' },
+                { value: 'admin', label: 'Admin' },
+              ]}
+            />
+            <Select
+              label='Status'
+              value={userForm.status}
+              onChange={(event) =>
+                setUserForm((current) => ({ ...current, status: event.target.value as UserStatus }))
+              }
+              options={[
+                { value: 'active', label: 'Active' },
+                { value: 'suspended', label: 'Suspended' },
+              ]}
+            />
+          </div>
+
+          <div className='flex gap-2'>
+            <Button variant='secondary' fullWidth onClick={closeUserModal}>
+              Cancel
+            </Button>
+            <Button fullWidth onClick={() => void handleSaveUser()}>
+              {editingUserId ? 'Save Changes' : 'Create User'}
             </Button>
           </div>
         </div>

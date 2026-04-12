@@ -8,6 +8,7 @@ class User(Model):
     first_name = fields.CharField(max_length=100)
     last_name = fields.CharField(max_length=100)
     role = fields.CharField(max_length=20)  # customer, shipowner, admin
+    status = fields.CharField(max_length=20, default='active')  # active, suspended
     created_at = fields.DatetimeField(auto_now_add=True)
 
     class Meta:
@@ -18,7 +19,8 @@ class Ship(Model):
     name = fields.CharField(max_length=255)
     operator = fields.CharField(max_length=255)
     owner = fields.ForeignKeyField('models.User', related_name='ships')
-    image = fields.CharField(max_length=500)
+    commission_rate = fields.FloatField(default=0)
+    image = fields.TextField()
     description = fields.TextField()
     rating = fields.FloatField()
     review_count = fields.IntField()
@@ -69,6 +71,24 @@ class Booking(Model):
     class Meta:
         table = "bookings"
 
+class Payment(Model):
+    id = fields.IntField(pk=True)
+    booking = fields.ForeignKeyField('models.Booking', related_name='payments')
+    amount = fields.FloatField()
+    platform_commission_amount = fields.FloatField(default=0)
+    shipowner_amount = fields.FloatField(default=0)
+    method = fields.CharField(max_length=50, default='sslcommerz')
+    status = fields.CharField(max_length=20, default='pending')
+    transaction_id = fields.CharField(max_length=100, unique=True)
+    session_key = fields.CharField(max_length=255, null=True)
+    gateway_reference = fields.CharField(max_length=255, null=True)
+    gateway_payload = fields.JSONField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = "payments"
+
 class BookingItem(Model):
     id = fields.IntField(pk=True)
     booking = fields.ForeignKeyField('models.Booking', related_name='items')
@@ -80,6 +100,33 @@ class BookingItem(Model):
 
     class Meta:
         table = "booking_items"
+
+
+class CabinHold(Model):
+    id = fields.IntField(pk=True)
+    user = fields.ForeignKeyField('models.User', related_name='cabin_holds')
+    route = fields.ForeignKeyField('models.Route', related_name='cabin_holds')
+    cabin = fields.ForeignKeyField('models.Cabin', related_name='holds')
+    status = fields.CharField(max_length=20, default='active')  # active, released, expired, converted
+    expires_at = fields.DatetimeField()
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = "cabin_holds"
+
+
+class Withdrawal(Model):
+    id = fields.IntField(pk=True)
+    shipowner = fields.ForeignKeyField('models.User', related_name='withdrawals')
+    amount = fields.FloatField()
+    status = fields.CharField(max_length=20, default='pending')  # pending, completed, rejected
+    note = fields.TextField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    processed_at = fields.DatetimeField(null=True)
+
+    class Meta:
+        table = "withdrawals"
 
 class Review(Model):
     id = fields.IntField(pk=True)

@@ -2,7 +2,13 @@
 
 import { create } from 'zustand';
 import { Booking } from '@/types';
-import { apiFetch, ApiBookingPayload, mapApiBooking } from '@/lib/api';
+import { apiFetch, ApiBookingPayload, ApiCreateBookingResponse, mapApiBooking } from '@/lib/api';
+
+interface BookingCreateResult {
+  booking: Booking;
+  paymentUrl: string | null;
+  paymentStatus: string | null;
+}
 
 interface BookingCreateInput {
   userId: string;
@@ -11,13 +17,14 @@ interface BookingCreateInput {
   totalPrice: number;
   status: Booking['status'];
   passengers: Booking['passengers'];
+  paymentMethod?: 'sslcommerz';
 }
 
 interface BookingState {
   bookings: Booking[];
   loading: boolean;
   fetchBookings: () => Promise<void>;
-  createBooking: (booking: BookingCreateInput) => Promise<Booking>;
+  createBooking: (booking: BookingCreateInput) => Promise<BookingCreateResult>;
   cancelBooking: (bookingId: string) => Promise<void>;
   updateBookingStatus: (bookingId: string, status: Booking['status']) => Promise<void>;
   deleteBooking: (bookingId: string) => Promise<void>;
@@ -38,7 +45,7 @@ export const useBookingStore = create<BookingState>((set) => ({
   },
 
   createBooking: async (booking) => {
-    const data = await apiFetch<{ message: string; booking: ApiBookingPayload }>('/bookings', {
+    const data = await apiFetch<ApiCreateBookingResponse>('/bookings', {
       method: 'POST',
       body: JSON.stringify({
         route_id: Number(booking.routeId),
@@ -51,6 +58,7 @@ export const useBookingStore = create<BookingState>((set) => ({
         })),
         total_price: booking.totalPrice,
         status: booking.status,
+        payment_method: booking.paymentMethod ?? 'sslcommerz',
         passengers: booking.passengers.map((passenger) => ({
           first_name: passenger.firstName,
           last_name: passenger.lastName,
@@ -65,7 +73,11 @@ export const useBookingStore = create<BookingState>((set) => ({
     });
     const newBooking = mapApiBooking(data.booking);
     set((state) => ({ bookings: [...state.bookings, newBooking] }));
-    return newBooking;
+    return {
+      booking: newBooking,
+      paymentUrl: data.payment_url ?? null,
+      paymentStatus: data.payment_status ?? null,
+    };
   },
 
   cancelBooking: async (bookingId) => {

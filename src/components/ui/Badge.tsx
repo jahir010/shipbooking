@@ -7,11 +7,11 @@ interface BadgeProps {
 }
 
 const variantMap = {
-  primary: 'bg-blue-100 text-blue-800',
-  success: 'bg-green-100 text-green-800',
-  warning: 'bg-yellow-100 text-yellow-800',
-  danger: 'bg-red-100 text-red-800',
-  info: 'bg-purple-100 text-purple-800',
+  primary: 'bg-[#e2f2f4] text-[#145a73]',
+  success: 'bg-[#dff3ea] text-[#187156]',
+  warning: 'bg-[#f7edd1] text-[#8b6722]',
+  danger: 'bg-[#f7dddd] text-[#9f4747]',
+  info: 'bg-[#e3e5f9] text-[#4d569d]',
 };
 
 const sizeMap = {
@@ -27,7 +27,7 @@ export default function Badge({
 }: BadgeProps) {
   return (
     <span
-      className={`inline-flex items-center rounded-full font-semibold ${variantMap[variant]} ${sizeMap[size]}`}
+      className={`inline-flex items-center rounded-full font-semibold uppercase tracking-[0.14em] ${variantMap[variant]} ${sizeMap[size]}`}
     >
       {children}
     </span>

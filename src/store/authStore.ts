@@ -10,7 +10,13 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   setUser: (user: User) => void;
-  register: (email: string, password: string, firstName: string, lastName: string, role: User['role']) => Promise<void>;
+  register: (
+    email: string,
+    password: string,
+    firstName: string,
+    lastName: string,
+    role: Extract<User['role'], 'customer' | 'shipowner'>,
+  ) => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -61,6 +67,9 @@ if (typeof window !== 'undefined') {
   if (savedUser) {
     try {
       const user = JSON.parse(savedUser);
+      if (!user.status) {
+        user.status = 'active';
+      }
       useAuthStore.setState({ user, isAuthenticated: true });
     } catch (e) {
       console.error('Failed to parse saved user', e);

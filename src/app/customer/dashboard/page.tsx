@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Star } from 'lucide-react';
+import { CalendarDays, Compass, MapPin, Star, Users } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useAuthStore } from '@/store/authStore';
 import { useShipStore } from '@/store/shipStore';
@@ -11,7 +11,8 @@ import { useRouteStore } from '@/store/routeStore';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import Input from '@/components/ui/Input';
-import { calculateDuration, formatCurrency } from '@/lib/utils';
+import PageHero from '@/components/layout/PageHero';
+import { calculateDuration, formatCurrency, formatDate } from '@/lib/utils';
 
 interface SearchFilter {
   departure: string;
@@ -37,31 +38,38 @@ export default function CustomerDashboard() {
   }, [fetchRoutes, fetchShips]);
 
   const filteredRoutes = useMemo(() => {
-    return routes.filter((route) => {
-      const matchesDeparture =
-        !search.departure ||
-        route.departurePort.toLowerCase().includes(search.departure.toLowerCase());
-      const matchesDestination =
-        !search.destination ||
-        route.destinationPort.toLowerCase().includes(search.destination.toLowerCase());
-      const matchesDate = !search.date || route.date === search.date;
+    return routes
+      .filter((route) => route.status === 'active' && route.seatsAvailable > 0)
+      .filter((route) => {
+        const matchesDeparture =
+          !search.departure ||
+          route.departurePort.toLowerCase().includes(search.departure.toLowerCase());
+        const matchesDestination =
+          !search.destination ||
+          route.destinationPort.toLowerCase().includes(search.destination.toLowerCase());
+        const matchesDate = !search.date || route.date === search.date;
 
-      return matchesDeparture && matchesDestination && matchesDate;
-    });
+        return matchesDeparture && matchesDestination && matchesDate;
+      })
+      .sort((left, right) =>
+        `${left.date} ${left.departureTime}`.localeCompare(`${right.date} ${right.departureTime}`),
+      );
   }, [routes, search]);
 
   if (!user || user.role !== 'customer') {
     return (
-      <div className='min-h-screen flex items-center justify-center p-6'>
-        <Card className='p-8 text-center max-w-md'>
-          <h1 className='text-2xl font-bold text-gray-900'>Customer Access Only</h1>
-          <p className='mt-3 text-gray-600'>
-            Please log in with a customer account to browse and book routes.
-          </p>
-          <Link href='/login' className='inline-block mt-6'>
-            <Button>Go to Login</Button>
-          </Link>
-        </Card>
+      <div className='page-shell min-h-screen px-4 py-10 lg:px-8'>
+        <div className='mx-auto max-w-xl'>
+          <Card className='p-10 text-center'>
+            <h1 className='font-display text-4xl font-semibold text-[#0f3b68]'>Customer Access Only</h1>
+            <p className='mt-4 text-base leading-7 text-slate-600'>
+              Please log in with a customer account to browse and book routes.
+            </p>
+            <Link href='/login' className='mt-6 inline-block'>
+              <Button>Go to Login</Button>
+            </Link>
+          </Card>
+        </div>
       </div>
     );
   }
@@ -74,18 +82,48 @@ export default function CustomerDashboard() {
   };
 
   return (
-    <div className='min-h-screen bg-gray-50'>
-      <div className='bg-blue-600 text-white py-8 px-4'>
-        <div className='max-w-7xl mx-auto'>
-          <h1 className='text-3xl font-bold mb-2'>Welcome, {user.name}</h1>
-          <p className='text-blue-100'>Find a route and book your next ship journey.</p>
-        </div>
-      </div>
+    <div className='page-shell min-h-screen px-4 py-6 lg:px-8 lg:py-8'>
+      <div className='mx-auto max-w-7xl space-y-8'>
+        <PageHero
+          eyebrow='Passenger dashboard'
+          title={`Find your next departure, ${user.name}.`}
+          description='Search live voyages, compare ship details, and move from discovery to booking without leaving the same editorial-style flow.'
+          actions={
+            <>
+              <Link href='/customer/bookings'>
+                <Button variant='secondary'>My Bookings</Button>
+              </Link>
+              <Link href='/signup/shipowner'>
+                <Button className='bg-white text-[#0f3b68] hover:bg-[#ecf5f7]'>Become a Partner</Button>
+              </Link>
+            </>
+          }
+          stats={[
+            { label: 'Active Voyages', value: filteredRoutes.length },
+            { label: 'Available Ships', value: ships.length },
+            { label: 'Open Seats', value: filteredRoutes.reduce((sum, route) => sum + route.seatsAvailable, 0) },
+          ]}
+        />
 
-      <div className='max-w-7xl mx-auto px-4 py-8'>
-        <Card className='p-6 mb-8'>
-          <h2 className='text-lg font-semibold mb-6'>Search Routes</h2>
-          <div className='grid grid-cols-1 md:grid-cols-4 gap-4'>
+        <Card className='p-6 lg:p-7'>
+          <div className='mb-6 flex items-end justify-between gap-4'>
+            <div>
+              <p className='text-sm font-semibold uppercase tracking-[0.24em] text-[#1d7e93]'>
+                Voyage search
+              </p>
+              <h2 className='mt-2 font-display text-4xl font-semibold text-[#0f3b68]'>
+                Filter Scheduled Routes
+              </h2>
+            </div>
+            <Button
+              variant='secondary'
+              onClick={() => setSearch({ departure: '', destination: '', date: '' })}
+            >
+              Clear Filters
+            </Button>
+          </div>
+
+          <div className='grid gap-4 md:grid-cols-3 lg:grid-cols-4'>
             <Input
               label='Departure Port'
               placeholder='From'
@@ -110,104 +148,113 @@ export default function CustomerDashboard() {
                 setSearch((current) => ({ ...current, date: event.target.value }))
               }
             />
-            <div className='flex items-end'>
-              <Button
-                fullWidth
-                variant='secondary'
-                onClick={() => setSearch({ departure: '', destination: '', date: '' })}
-              >
-                Clear Filters
-              </Button>
+            <div className='rounded-[1.7rem] border border-[#d9e4e8] bg-[#eef7f8] p-4 text-sm leading-7 text-slate-600'>
+              Editorial search keeps routes, cabins, and booking context in one place.
             </div>
           </div>
         </Card>
 
-        <div className='flex items-center justify-between mb-6'>
-          <h2 className='text-2xl font-bold'>Available Routes</h2>
-          <Link href='/customer/bookings'>
-            <Button variant='secondary'>My Bookings</Button>
-          </Link>
+        <div className='flex items-end justify-between gap-4'>
+          <div>
+            <p className='text-sm font-semibold uppercase tracking-[0.24em] text-[#1d7e93]'>
+              Live departures
+            </p>
+            <h2 className='mt-2 font-display text-4xl font-semibold text-[#0f3b68]'>
+              Available Routes
+            </h2>
+          </div>
         </div>
 
         {isLoading ? (
-          <Card className='p-12 text-center'>
-            <p className='text-gray-500'>Loading routes...</p>
-          </Card>
+          <Card className='p-12 text-center text-slate-500'>Loading routes...</Card>
         ) : filteredRoutes.length === 0 ? (
-          <Card className='p-12 text-center'>
-            <p className='text-gray-500'>No routes match your filters yet.</p>
+          <Card className='p-12 text-center text-slate-500'>
+            No routes match your current filters yet.
           </Card>
         ) : (
-          <div className='space-y-4'>
+          <div className='space-y-5'>
             {filteredRoutes.map((route) => {
               const ship = ships.find((item) => item.id === route.shipId);
               return (
-                <Card key={route.id} className='p-6 hover:shadow-lg transition'>
-                  <div className='flex flex-col lg:flex-row gap-6'>
-                    <div className='lg:w-56 shrink-0'>
-                      <div className='h-40 rounded-lg overflow-hidden bg-slate-200'>
-                        {ship?.image ? (
-                          <img
-                            src={ship.image}
-                            alt={ship.name}
-                            className='w-full h-full object-cover'
-                          />
-                        ) : (
-                          <div className='w-full h-full flex items-center justify-center text-slate-500'>
-                            No image
-                          </div>
-                        )}
-                      </div>
+                <Card key={route.id} className='overflow-hidden p-5 lg:p-6'>
+                  <div className='grid gap-6 lg:grid-cols-[240px_1fr]'>
+                    <div className='h-52 overflow-hidden rounded-[1.7rem] bg-slate-200'>
+                      {ship?.image ? (
+                        <img src={ship.image} alt={ship.name} className='h-full w-full object-cover' />
+                      ) : (
+                        <div className='flex h-full items-center justify-center text-slate-500'>No image</div>
+                      )}
                     </div>
 
-                    <div className='flex-1'>
-                      <div className='flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-4'>
+                    <div className='space-y-5'>
+                      <div className='flex flex-col gap-4 md:flex-row md:items-start md:justify-between'>
                         <div>
-                          <h3 className='text-xl font-bold text-gray-900'>
+                          <h3 className='text-2xl font-semibold text-[#0f3b68]'>
                             {ship?.name || 'Unknown Ship'}
                           </h3>
-                          <p className='text-sm text-gray-600'>{ship?.operator || 'Unknown operator'}</p>
+                          <p className='mt-1 text-sm text-slate-600'>
+                            {ship?.operator || 'Unknown operator'}
+                          </p>
                         </div>
-                        {ship && (
-                          <div className='flex items-center gap-1 text-sm'>
-                            <Star size={16} className='text-yellow-500 fill-yellow-500' />
-                            <span className='font-semibold'>{ship.rating.toFixed(1)}</span>
-                            <span className='text-gray-500'>({ship.reviews} reviews)</span>
+                        {ship ? (
+                          <div className='flex items-center gap-2 rounded-full bg-[#eef7f8] px-4 py-2 text-sm font-semibold text-[#145a73]'>
+                            <Star size={16} className='fill-current' />
+                            {ship.rating.toFixed(1)} rating
                           </div>
-                        )}
+                        ) : null}
                       </div>
 
-                      <div className='grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 text-sm'>
-                        <div>
-                          <p className='text-gray-500'>From</p>
-                          <p className='font-semibold'>{route.departurePort}</p>
-                          <p className='text-gray-600'>{route.departureTime}</p>
+                      <div className='grid gap-4 md:grid-cols-5'>
+                        <div className='rounded-[1.4rem] bg-[#f7fafb] p-4'>
+                          <p className='text-xs font-semibold uppercase tracking-[0.18em] text-[#7d92a2]'>From</p>
+                          <p className='mt-3 font-semibold text-[#0f3b68]'>{route.departurePort}</p>
+                          <p className='text-sm text-slate-500'>{route.departureTime}</p>
                         </div>
-                        <div>
-                          <p className='text-gray-500'>To</p>
-                          <p className='font-semibold'>{route.destinationPort}</p>
-                          <p className='text-gray-600'>{route.arrivalTime}</p>
+                        <div className='rounded-[1.4rem] bg-[#f7fafb] p-4'>
+                          <p className='text-xs font-semibold uppercase tracking-[0.18em] text-[#7d92a2]'>To</p>
+                          <p className='mt-3 font-semibold text-[#0f3b68]'>{route.destinationPort}</p>
+                          <p className='text-sm text-slate-500'>{route.arrivalTime}</p>
                         </div>
-                        <div>
-                          <p className='text-gray-500'>Duration</p>
-                          <p className='font-semibold'>{calculateDuration(route.duration)}</p>
+                        <div className='rounded-[1.4rem] bg-[#f7fafb] p-4'>
+                          <p className='text-xs font-semibold uppercase tracking-[0.18em] text-[#7d92a2]'>Date</p>
+                          <p className='mt-3 flex items-center gap-2 font-semibold text-[#0f3b68]'>
+                            <CalendarDays size={15} className='text-[#1d7e93]' />
+                            {formatDate(route.date)}
+                          </p>
                         </div>
-                        <div>
-                          <p className='text-gray-500'>Seats Left</p>
-                          <p className='font-semibold'>
-                            {route.seatsAvailable} / {route.totalSeats}
+                        <div className='rounded-[1.4rem] bg-[#f7fafb] p-4'>
+                          <p className='text-xs font-semibold uppercase tracking-[0.18em] text-[#7d92a2]'>Duration</p>
+                          <p className='mt-3 flex items-center gap-2 font-semibold text-[#0f3b68]'>
+                            <Compass size={15} className='text-[#1d7e93]' />
+                            {calculateDuration(route.duration)}
+                          </p>
+                        </div>
+                        <div className='rounded-[1.4rem] bg-[#f7fafb] p-4'>
+                          <p className='text-xs font-semibold uppercase tracking-[0.18em] text-[#7d92a2]'>Seats Left</p>
+                          <p className='mt-3 flex items-center gap-2 font-semibold text-[#0f3b68]'>
+                            <Users size={15} className='text-[#1d7e93]' />
+                            {route.seatsAvailable}/{route.totalSeats}
                           </p>
                         </div>
                       </div>
 
-                      <div className='flex flex-col md:flex-row md:items-center md:justify-between gap-4'>
+                      <div className='flex flex-col gap-4 border-t border-[#dde7eb] pt-5 md:flex-row md:items-center md:justify-between'>
                         <div>
-                          <p className='text-sm text-gray-600'>Starting from</p>
-                          <p className='text-2xl font-bold text-blue-600'>
+                          <p className='text-xs font-semibold uppercase tracking-[0.18em] text-[#7d92a2]'>Starting from</p>
+                          <p className='mt-2 text-3xl font-semibold text-[#0f3b68]'>
                             {formatCurrency(route.basePrice)}
                           </p>
                         </div>
-                        <Button onClick={() => handleBooking(route.id)}>Book Now</Button>
+                        <div className='flex gap-3'>
+                          <button
+                            type='button'
+                            className='inline-flex items-center gap-2 rounded-full bg-[#eef7f8] px-4 py-3 text-sm font-semibold text-[#145a73]'
+                          >
+                            <MapPin size={15} />
+                            {route.departurePort} to {route.destinationPort}
+                          </button>
+                          <Button onClick={() => handleBooking(route.id)}>Book Upcoming Trip</Button>
+                        </div>
                       </div>
                     </div>
                   </div>

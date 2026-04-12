@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS `ships` (
     `id` INT NOT NULL PRIMARY KEY AUTO_INCREMENT,
     `name` VARCHAR(255) NOT NULL,
     `operator` VARCHAR(255) NOT NULL,
-    `image` VARCHAR(500) NOT NULL,
+    `image` LONGTEXT NOT NULL,
     `description` LONGTEXT NOT NULL,
     `rating` DOUBLE NOT NULL,
     `review_count` INT NOT NULL,
@@ -70,6 +70,20 @@ CREATE TABLE IF NOT EXISTS `bookings` (
     `user_id` INT NOT NULL,
     CONSTRAINT `fk_bookings_routes_e6a4bacc` FOREIGN KEY (`route_id`) REFERENCES `routes` (`id`) ON DELETE CASCADE,
     CONSTRAINT `fk_bookings_users_4e9f0922` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) CHARACTER SET utf8mb4;
+CREATE TABLE IF NOT EXISTS `payments` (
+    `id` INT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+    `amount` DOUBLE NOT NULL,
+    `method` VARCHAR(50) NOT NULL DEFAULT 'sslcommerz',
+    `status` VARCHAR(20) NOT NULL DEFAULT 'pending',
+    `transaction_id` VARCHAR(100) NOT NULL UNIQUE,
+    `session_key` VARCHAR(255),
+    `gateway_reference` VARCHAR(255),
+    `gateway_payload` JSON,
+    `created_at` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    `updated_at` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+    `booking_id` INT NOT NULL,
+    CONSTRAINT `fk_payments_bookings_booking` FOREIGN KEY (`booking_id`) REFERENCES `bookings` (`id`) ON DELETE CASCADE
 ) CHARACTER SET utf8mb4;
 CREATE TABLE IF NOT EXISTS `booking_items` (
     `id` INT NOT NULL PRIMARY KEY AUTO_INCREMENT,

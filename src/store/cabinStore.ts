@@ -4,6 +4,11 @@ import { create } from 'zustand';
 import { Cabin } from '@/types';
 import { apiFetch, ApiCabinPayload, mapApiCabin } from '@/lib/api';
 
+interface CabinFetchOptions {
+  routeId?: string;
+  availableOnly?: boolean;
+}
+
 interface CabinCreateInput {
   shipId: string;
   type: Cabin['type'];
@@ -16,7 +21,7 @@ interface CabinCreateInput {
 interface CabinState {
   cabins: Cabin[];
   loading: boolean;
-  fetchCabins: () => Promise<void>;
+  fetchCabins: (options?: CabinFetchOptions) => Promise<void>;
   addCabin: (cabin: CabinCreateInput) => Promise<Cabin>;
   removeCabin: (cabinId: string) => Promise<void>;
 }
@@ -25,10 +30,20 @@ export const useCabinStore = create<CabinState>((set) => ({
   cabins: [],
   loading: false,
 
-  fetchCabins: async () => {
+  fetchCabins: async (options) => {
     set({ loading: true });
     try {
-      const data = await apiFetch<ApiCabinPayload[]>('/cabins', { auth: false });
+      const searchParams = new URLSearchParams();
+      if (options?.routeId) {
+        searchParams.set('route_id', options.routeId);
+      }
+      if (options?.availableOnly) {
+        searchParams.set('available_only', 'true');
+      }
+      const query = searchParams.toString();
+      const data = await apiFetch<ApiCabinPayload[]>(`/cabins${query ? `?${query}` : ''}`, {
+        auth: false,
+      });
       set({ cabins: data.map(mapApiCabin) });
     } finally {
       set({ loading: false });

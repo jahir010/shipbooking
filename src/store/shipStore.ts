@@ -9,6 +9,7 @@ interface ShipCreateInput {
   operator: string;
   image: string;
   description: string;
+  commissionRate?: number;
   rating?: number;
   reviewCount?: number;
 }
@@ -41,6 +42,7 @@ export const useShipStore = create<ShipState>((set) => ({
       body: JSON.stringify({
         name: ship.name,
         operator: ship.operator,
+        commission_rate: ship.commissionRate ?? 0,
         image: ship.image,
         description: ship.description,
         rating: ship.rating ?? 0,

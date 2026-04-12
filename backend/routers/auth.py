@@ -59,6 +59,8 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         user = await User.get(email=email)
     except DoesNotExist:
         raise credentials_exception
+    if user.status != "active":
+        raise HTTPException(status_code=403, detail="This account has been suspended.")
     return user
 
 
@@ -69,6 +71,7 @@ def serialize_user(user: User):
         "first_name": user.first_name,
         "last_name": user.last_name,
         "role": user.role,
+        "status": user.status,
         "created_at": user.created_at.isoformat() if user.created_at else None,
     }
 
@@ -79,7 +82,7 @@ async def register(user: UserCreate):
     last_name = user.last_name.strip()
     role = user.role.strip().lower()
 
-    if role not in {"customer", "shipowner", "admin"}:
+    if role not in {"customer", "shipowner"}:
         raise HTTPException(status_code=400, detail="Invalid role")
     if not first_name:
         raise HTTPException(status_code=400, detail="First name is required")
@@ -99,7 +102,8 @@ async def register(user: UserCreate):
         password=hashed_password,
         first_name=first_name,
         last_name=last_name,
-        role=role
+        role=role,
+        status="active",
     )
     return {"message": "User created successfully", "user": serialize_user(user_obj)}
 
@@ -117,6 +121,8 @@ async def login(user: UserLogin):
 
     if not is_valid_password:
         raise HTTPException(status_code=400, detail="Incorrect email or password")
+    if db_user.status != "active":
+        raise HTTPException(status_code=403, detail="This account has been suspended. Please contact support.")
     
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(

@@ -2,18 +2,21 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { CheckCircle2, Plus, Trash2 } from 'lucide-react';
+import { CheckCircle2, Download, Landmark, Plus, Trash2, Wallet } from 'lucide-react';
 import { toast } from 'react-toastify';
+import { createWithdrawal, downloadBookingInvoice, getFinanceSummary, getWithdrawals, mapApiFinanceSummary, mapApiWithdrawal } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
 import { useBookingStore } from '@/store/bookingStore';
 import { useCabinStore } from '@/store/cabinStore';
 import { useRouteStore } from '@/store/routeStore';
 import { useShipStore } from '@/store/shipStore';
-import { Booking, CabinType } from '@/types';
+import { Booking, CabinType, FinanceSummary, Withdrawal } from '@/types';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
+import PageHero from '@/components/layout/PageHero';
 import Input from '@/components/ui/Input';
+import ImageUpload from '@/components/ui/ImageUpload';
 import Modal from '@/components/ui/Modal';
 import Select from '@/components/ui/Select';
 import { CABIN_TYPES } from '@/lib/mockData';
@@ -62,6 +65,7 @@ export default function ShipOwnerDashboard() {
   const [activeTab, setActiveTab] = useState<OwnerTab>('ships');
   const [showShipModal, setShowShipModal] = useState(false);
   const [showRouteModal, setShowRouteModal] = useState(false);
+  const [showWithdrawalModal, setShowWithdrawalModal] = useState(false);
   const [shipForm, setShipForm] = useState({
     name: '',
     operator: '',
@@ -86,14 +90,29 @@ export default function ShipOwnerDashboard() {
     capacity: '1',
     basePrice: '',
   });
+  const [financeSummary, setFinanceSummary] = useState<FinanceSummary | null>(null);
+  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
+  const [withdrawalAmount, setWithdrawalAmount] = useState('');
+  const [withdrawalNote, setWithdrawalNote] = useState('');
 
   useEffect(() => {
-    Promise.all([fetchShips(), fetchRoutes(), fetchCabins(), fetchBookings()]).catch(
+    Promise.all([fetchShips(), fetchRoutes({ includePast: true }), fetchCabins(), fetchBookings()]).catch(
       (error: unknown) => {
         toast.error(error instanceof Error ? error.message : 'Failed to load dashboard data');
       },
     );
   }, [fetchBookings, fetchCabins, fetchRoutes, fetchShips]);
+
+  useEffect(() => {
+    Promise.all([getFinanceSummary(), getWithdrawals()])
+      .then(([summary, withdrawalData]) => {
+        setFinanceSummary(mapApiFinanceSummary(summary));
+        setWithdrawals(withdrawalData.map(mapApiWithdrawal));
+      })
+      .catch((error: unknown) => {
+        toast.error(error instanceof Error ? error.message : 'Failed to load payout data');
+      });
+  }, []);
 
   const ownerShips = useMemo(() => {
     if (!user) {
@@ -110,6 +129,11 @@ export default function ShipOwnerDashboard() {
   const ownerRoutes = useMemo(
     () => routes.filter((route) => ownerShipIds.has(route.shipId)),
     [ownerShipIds, routes],
+  );
+
+  const upcomingOwnerRoutes = useMemo(
+    () => ownerRoutes.filter((route) => route.status === 'active'),
+    [ownerRoutes],
   );
 
   const ownerRouteIds = useMemo(
@@ -285,16 +309,77 @@ export default function ShipOwnerDashboard() {
     }
   };
 
-  return (
-    <div className='min-h-screen bg-gray-50'>
-      <div className='bg-blue-600 text-white py-8 px-4'>
-        <div className='max-w-7xl mx-auto'>
-          <h1 className='text-3xl font-bold'>Ship Management Dashboard</h1>
-          <p className='text-blue-100 mt-2'>Manage your fleet, routes, cabins, and bookings.</p>
-        </div>
-      </div>
+  const handleDownloadInvoice = async (booking: Booking) => {
+    try {
+      await downloadBookingInvoice(booking.id);
+      toast.success(
+        booking.invoiceNumber ? `Invoice ${booking.invoiceNumber} downloaded` : 'Invoice downloaded',
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to download invoice');
+    }
+  };
 
-      <div className='max-w-7xl mx-auto px-4 py-8'>
+  const handleRequestWithdrawal = async () => {
+    try {
+      const amount = Number(withdrawalAmount);
+      const response = await createWithdrawal(amount, withdrawalNote || undefined);
+      setWithdrawals((current) => [mapApiWithdrawal(response.withdrawal), ...current]);
+      const refreshedSummary = await getFinanceSummary();
+      setFinanceSummary(mapApiFinanceSummary(refreshedSummary));
+      setWithdrawalAmount('');
+      setWithdrawalNote('');
+      setShowWithdrawalModal(false);
+      toast.success('Withdrawal request submitted');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to request withdrawal');
+    }
+  };
+
+  return (
+    <div className='page-shell min-h-screen px-4 py-6 lg:px-8 lg:py-8'>
+      <div className='mx-auto max-w-7xl'>
+        <PageHero
+          eyebrow='Operator workspace'
+          title='Run your fleet with one cohesive view.'
+          description='Manage ships, routes, cabins, and passenger activity with the same editorial visual language used on the public-facing experience.'
+          actions={
+            <>
+              <Button variant='secondary' onClick={() => setShowWithdrawalModal(true)}>
+                <Wallet size={18} />
+                Withdraw Funds
+              </Button>
+              <Button onClick={() => setShowShipModal(true)}>
+                <Plus size={18} />
+                Add Ship
+              </Button>
+            </>
+          }
+          stats={[
+            { label: 'Ships', value: ownerShips.length },
+            { label: 'Routes', value: ownerRoutes.length },
+            { label: 'Revenue', value: formatCurrency(totalRevenue) },
+          ]}
+        />
+
+        <div className='py-8'>
+        {financeSummary ? (
+          <div className='grid grid-cols-1 gap-4 md:grid-cols-3 mb-8'>
+            <Card className='p-6'>
+              <p className='text-sm text-gray-500'>Available to Withdraw</p>
+              <p className='mt-2 text-3xl font-bold text-[#0f3b68]'>{formatCurrency(financeSummary.availableToWithdraw)}</p>
+            </Card>
+            <Card className='p-6'>
+              <p className='text-sm text-gray-500'>Your Net Earnings</p>
+              <p className='mt-2 text-3xl font-bold text-[#0f3b68]'>{formatCurrency(financeSummary.shipownerEarnings)}</p>
+            </Card>
+            <Card className='p-6'>
+              <p className='text-sm text-gray-500'>Pending Withdrawals</p>
+              <p className='mt-2 text-3xl font-bold text-[#0f3b68]'>{formatCurrency(financeSummary.pendingWithdrawals)}</p>
+            </Card>
+          </div>
+        ) : null}
+
         <div className='grid grid-cols-1 md:grid-cols-4 gap-4 mb-8'>
           {[
             { label: 'Ships', value: ownerShips.length },
@@ -395,17 +480,17 @@ export default function ShipOwnerDashboard() {
               </Button>
             </div>
 
-            {ownerRoutes.length === 0 ? (
+            {upcomingOwnerRoutes.length === 0 ? (
               <Card className='p-12 text-center'>
                 <p className='text-gray-500'>
                   {ownerShips.length === 0
                     ? 'Add a ship before creating routes.'
-                    : 'No routes created yet.'}
+                    : 'No upcoming routes scheduled yet.'}
                 </p>
               </Card>
             ) : (
               <div className='space-y-4'>
-                {ownerRoutes.map((route) => {
+                {upcomingOwnerRoutes.map((route) => {
                   const ship = ownerShips.find((item) => item.id === route.shipId);
                   return (
                     <Card key={route.id} className='p-6'>
@@ -582,15 +667,26 @@ export default function ShipOwnerDashboard() {
                           </p>
                         </div>
 
-                        {booking.status === 'pending' ? (
-                          <Button
-                            variant='success'
-                            onClick={() => void handleConfirmBooking(booking.id)}
-                          >
-                            <CheckCircle2 size={16} />
-                            Confirm
-                          </Button>
-                        ) : null}
+                        <div className='flex flex-wrap gap-2'>
+                          {booking.invoiceAvailable ? (
+                            <Button
+                              variant='secondary'
+                              onClick={() => void handleDownloadInvoice(booking)}
+                            >
+                              <Download size={16} />
+                              Invoice
+                            </Button>
+                          ) : null}
+                          {booking.status === 'pending' ? (
+                            <Button
+                              variant='success'
+                              onClick={() => void handleConfirmBooking(booking.id)}
+                            >
+                              <CheckCircle2 size={16} />
+                              Confirm
+                            </Button>
+                          ) : null}
+                        </div>
                       </div>
                     </Card>
                   );
@@ -599,6 +695,29 @@ export default function ShipOwnerDashboard() {
             )}
           </div>
         )}
+
+        {!isLoading && withdrawals.length > 0 && (
+          <Card className='mt-8 p-6'>
+            <div className='flex items-center gap-3 mb-4'>
+              <Landmark className='text-[#1d7e93]' size={20} />
+              <h2 className='text-xl font-bold text-[#0f3b68]'>Recent Withdrawal Requests</h2>
+            </div>
+            <div className='space-y-3'>
+              {withdrawals.slice(0, 4).map((withdrawal) => (
+                <div key={withdrawal.id} className='flex flex-col gap-3 rounded-[1.4rem] bg-[#f7fafb] p-4 md:flex-row md:items-center md:justify-between'>
+                  <div>
+                    <p className='font-semibold text-[#0f3b68]'>{formatCurrency(withdrawal.amount)}</p>
+                    <p className='text-sm text-slate-500'>{withdrawal.note || 'No note attached'}</p>
+                  </div>
+                  <Badge variant={withdrawal.status === 'completed' ? 'success' : withdrawal.status === 'rejected' ? 'danger' : 'warning'}>
+                    {withdrawal.status}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
+        </div>
       </div>
 
       <Modal isOpen={showShipModal} onClose={() => setShowShipModal(false)} title='Add Ship'>
@@ -617,12 +736,13 @@ export default function ShipOwnerDashboard() {
               setShipForm((current) => ({ ...current, operator: event.target.value }))
             }
           />
-          <Input
-            label='Image URL'
+          <ImageUpload
+            label='Ship Image'
             value={shipForm.image}
-            onChange={(event) =>
-              setShipForm((current) => ({ ...current, image: event.target.value }))
+            onChange={(value) =>
+              setShipForm((current) => ({ ...current, image: value }))
             }
+            helperText='Upload a local image or paste an image URL.'
           />
           <Input
             label='Description'
@@ -726,6 +846,32 @@ export default function ShipOwnerDashboard() {
             </Button>
             <Button fullWidth onClick={() => void handleAddRoute()}>
               Save Route
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={showWithdrawalModal} onClose={() => setShowWithdrawalModal(false)} title='Request Withdrawal'>
+        <div className='space-y-4'>
+          <Input
+            type='number'
+            label='Amount'
+            value={withdrawalAmount}
+            onChange={(event) => setWithdrawalAmount(event.target.value)}
+            helperText={financeSummary ? `Available balance: ${formatCurrency(financeSummary.availableToWithdraw)}` : undefined}
+          />
+          <Input
+            label='Note'
+            value={withdrawalNote}
+            onChange={(event) => setWithdrawalNote(event.target.value)}
+            placeholder='Optional settlement note'
+          />
+          <div className='flex gap-2'>
+            <Button variant='secondary' fullWidth onClick={() => setShowWithdrawalModal(false)}>
+              Cancel
+            </Button>
+            <Button fullWidth onClick={() => void handleRequestWithdrawal()}>
+              Submit Request
             </Button>
           </div>
         </div>

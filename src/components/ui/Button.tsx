@@ -13,19 +13,24 @@ export default function Button({
   className = '',
   ...props
 }: ButtonProps) {
-  const baseStyles = 'rounded font-semibold transition duration-200 flex items-center gap-2 justify-center';
+  const baseStyles =
+    'inline-flex items-center justify-center gap-2 rounded-full font-semibold transition duration-200 disabled:cursor-not-allowed disabled:opacity-60';
 
   const variantStyles = {
-    primary: 'bg-blue-600 text-white hover:bg-blue-700',
-    secondary: 'bg-gray-200 text-gray-800 hover:bg-gray-300',
-    danger: 'bg-red-600 text-white hover:bg-red-700',
-    success: 'bg-green-600 text-white hover:bg-green-700',
+    primary:
+      'bg-[#0f3b68] text-white shadow-[0_14px_32px_rgba(15,59,104,0.22)] hover:bg-[#0a2c4f]',
+    secondary:
+      'border border-[#d6e1e7] bg-white/92 text-[#163b5f] hover:bg-[#f5f8f8]',
+    danger:
+      'bg-[#b84d4d] text-white shadow-[0_14px_30px_rgba(184,77,77,0.18)] hover:bg-[#973f3f]',
+    success:
+      'bg-[#14806c] text-white shadow-[0_14px_30px_rgba(20,128,108,0.18)] hover:bg-[#106756]',
   };
 
   const sizeStyles = {
-    sm: 'px-3 py-1 text-sm',
-    md: 'px-4 py-2 text-base',
-    lg: 'px-6 py-3 text-lg',
+    sm: 'px-4 py-2 text-sm',
+    md: 'px-5 py-2.5 text-sm',
+    lg: 'px-6 py-3 text-base',
   };
 
   const widthClass = fullWidth ? 'w-full' : '';

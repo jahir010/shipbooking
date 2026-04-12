@@ -14,20 +14,21 @@ export default function Input({
   ...props
 }: InputProps) {
   return (
-    <div className='flex flex-col gap-1'>
+    <div className='flex flex-col gap-2'>
       {label && (
-        <label className='text-sm font-semibold text-gray-700'>{label}</label>
+        <label className='text-xs font-semibold uppercase tracking-[0.18em] text-[#6e8799]'>{label}</label>
       )}
       <input
         className={`
-          px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500
-          ${error ? 'border-red-500' : 'border-gray-300'}
+          rounded-2xl border bg-white/92 px-4 py-3 text-[#163b5f] outline-none ring-0
+          focus:border-[#7cd4d8] focus:ring-2 focus:ring-[#7cd4d8]/25
+          ${error ? 'border-red-400' : 'border-[#d8e3e8]'}
           ${className}
         `}
         {...props}
       />
-      {error && <p className='text-red-500 text-sm'>{error}</p>}
-      {helperText && <p className='text-gray-500 text-sm'>{helperText}</p>}
+      {error && <p className='text-sm text-red-500'>{error}</p>}
+      {helperText && <p className='text-sm text-[#6f8291]'>{helperText}</p>}
     </div>
   );
 }
