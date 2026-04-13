@@ -1,4 +1,5 @@
 import os
+from urllib.parse import quote_plus
 
 from decouple import config
 
@@ -8,11 +9,24 @@ def _build_database_url() -> str:
     if database_url:
         return database_url
 
-    return (
-        f"mysql://{config('DB_USER', 'root')}:{config('DB_PASSWORD', 'root')}"
-        f"@{config('DB_HOST', 'localhost')}:{config('DB_PORT', '3306')}"
-        f"/{config('DB_NAME', 'shipbooking')}"
-    )
+    db_scheme = config("DB_SCHEME", default="").strip().lower()
+    db_host = config("DB_HOST", "localhost")
+    db_port = config("DB_PORT", "3306")
+    db_name = config("DB_NAME", "shipbooking")
+    db_user = quote_plus(config("DB_USER", "root"))
+    db_password = quote_plus(config("DB_PASSWORD", "root"))
+
+    if not db_scheme:
+        db_scheme = "postgres" if db_port == "5432" else "mysql"
+
+    query = ""
+    if db_scheme.startswith("postgres"):
+        ssl_mode = config("DB_SSLMODE", default="require" if os.getenv("RENDER") else "prefer")
+        query = f"?sslmode={ssl_mode}"
+    elif config("DB_SSL", default=False, cast=bool):
+        query = "?ssl=true"
+
+    return f"{db_scheme}://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}{query}"
 
 
 def _split_csv(raw_value: str) -> list[str]:
@@ -20,6 +34,8 @@ def _split_csv(raw_value: str) -> list[str]:
 
 
 DATABASE_URL = _build_database_url()
+IS_POSTGRES = DATABASE_URL.startswith(("postgres://", "postgresql://"))
+IS_MYSQL = DATABASE_URL.startswith("mysql://")
 ENVIRONMENT = config("ENVIRONMENT", "production" if os.getenv("RENDER") else "development")
 IS_PRODUCTION = ENVIRONMENT.lower() == "production"
 DB_GENERATE_SCHEMAS = config("DB_GENERATE_SCHEMAS", not IS_PRODUCTION, cast=bool)

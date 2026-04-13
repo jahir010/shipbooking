@@ -56,8 +56,14 @@ DEFAULT_FROM_EMAIL=noreply@example.com
 Render service settings:
 
 - Root directory: `backend`
-- Build command: `pip install -r requirements.txt`
+- Build command: `pip install -r requirements.txt && python bootstrap_db.py`
 - Start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+
+Important:
+
+- Do not use `aerich init-db` on Render once `backend/migrations/models` already exists.
+- If you previously added `aerich init-db` in the Render dashboard, remove it.
+- The included `bootstrap_db.py` script is idempotent and is the safe deploy-time setup command for this repo.
 
 After the first deploy, open:
 

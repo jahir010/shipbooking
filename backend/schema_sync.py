@@ -1,11 +1,15 @@
 import logging
 
 from tortoise import connections
+from config import IS_MYSQL
 
 logger = logging.getLogger(__name__)
 
 
 async def ensure_ship_image_longtext() -> None:
+    if not IS_MYSQL:
+        logger.info("Skipping MySQL-specific ships.image sync for non-MySQL database")
+        return
     connection = connections.get("default")
     rows = await connection.execute_query_dict(
         """
@@ -31,6 +35,9 @@ async def ensure_ship_image_longtext() -> None:
 
 
 async def ensure_user_status_column() -> None:
+    if not IS_MYSQL:
+        logger.info("Skipping MySQL-specific users.status sync for non-MySQL database")
+        return
     connection = connections.get("default")
     rows = await connection.execute_query_dict(
         """
@@ -55,6 +62,9 @@ async def ensure_user_status_column() -> None:
 
 
 async def ensure_ship_commission_rate_column() -> None:
+    if not IS_MYSQL:
+        logger.info("Skipping MySQL-specific ships.commission_rate sync for non-MySQL database")
+        return
     connection = connections.get("default")
     rows = await connection.execute_query_dict(
         """
@@ -78,6 +88,9 @@ async def ensure_ship_commission_rate_column() -> None:
 
 
 async def ensure_payment_split_columns() -> None:
+    if not IS_MYSQL:
+        logger.info("Skipping MySQL-specific payments sync for non-MySQL database")
+        return
     connection = connections.get("default")
     rows = await connection.execute_query_dict(
         """
