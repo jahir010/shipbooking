@@ -1,3 +1,5 @@
+import os
+
 from decouple import config
 
 
@@ -18,6 +20,10 @@ def _split_csv(raw_value: str) -> list[str]:
 
 
 DATABASE_URL = _build_database_url()
+ENVIRONMENT = config("ENVIRONMENT", "production" if os.getenv("RENDER") else "development")
+IS_PRODUCTION = ENVIRONMENT.lower() == "production"
+DB_GENERATE_SCHEMAS = config("DB_GENERATE_SCHEMAS", not IS_PRODUCTION, cast=bool)
+RUN_STARTUP_SCHEMA_SYNC = config("RUN_STARTUP_SCHEMA_SYNC", not IS_PRODUCTION, cast=bool)
 APP_URL = config("APP_URL", "http://localhost:3000")
 API_PUBLIC_BASE_URL = config("API_PUBLIC_BASE_URL", "http://localhost:8000/api")
 BACKEND_CORS_ORIGINS = _split_csv(
