@@ -79,13 +79,15 @@ You should see:
 
 1. Import the same GitHub repo into Vercel.
 2. Keep the project root as the repository root.
-3. Add this environment variable:
+3. Make sure the framework preset is `Next.js` and not `Other` or `Services`.
+4. If the project was previously created with the wrong preset, update the Vercel project settings or recreate the project before redeploying.
+5. Add this environment variable:
 
 ```env
 NEXT_PUBLIC_API_BASE=https://shipbooking-api.onrender.com/api
 ```
 
-4. Deploy.
+6. Deploy.
 
 ## 5. Final production values to revisit
 
