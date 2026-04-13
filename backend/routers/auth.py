@@ -82,8 +82,15 @@ async def register(user: UserCreate):
     last_name = user.last_name.strip()
     role = user.role.strip().lower()
 
-    if role not in {"customer", "shipowner"}:
+    if role not in {"customer", "shipowner", "admin"}:
         raise HTTPException(status_code=400, detail="Invalid role")
+    if role == "admin":
+        has_existing_admin = await User.filter(role="admin").exists()
+        if has_existing_admin:
+            raise HTTPException(
+                status_code=403,
+                detail="Admin registration is disabled. Ask an existing admin to create the account.",
+            )
     if not first_name:
         raise HTTPException(status_code=400, detail="First name is required")
     existing_user = await User.get_or_none(email=normalized_email)
