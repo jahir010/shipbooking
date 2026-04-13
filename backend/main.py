@@ -38,13 +38,38 @@ register_tortoise(
 )
 
 
+# @app.on_event("startup")
+# async def sync_existing_schema():
+#     await ensure_ship_image_longtext()
+#     await ensure_user_status_column()
+#     await ensure_ship_commission_rate_column()
+#     await ensure_payment_split_columns()
+#     await sync_all_route_statuses()
+
 @app.on_event("startup")
 async def sync_existing_schema():
-    await ensure_ship_image_longtext()
-    await ensure_user_status_column()
-    await ensure_ship_commission_rate_column()
-    await ensure_payment_split_columns()
-    await sync_all_route_statuses()
+    print("🚀 STARTUP STARTED")
+
+    try:
+        await ensure_ship_image_longtext()
+        print("✅ ship image column OK")
+
+        await ensure_user_status_column()
+        print("✅ user status column OK")
+
+        await ensure_ship_commission_rate_column()
+        print("✅ commission column OK")
+
+        await ensure_payment_split_columns()
+        print("✅ payment split OK")
+
+        await sync_all_route_statuses()
+        print("✅ route sync OK")
+
+    except Exception as e:
+        print("❌ STARTUP ERROR:", e)
+
+    print("🔥 STARTUP FINISHED")
 
 @app.get("/")
 async def root():
