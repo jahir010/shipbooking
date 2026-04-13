@@ -2,7 +2,8 @@
 
 import { Booking, Cabin, FinanceSummary, Passenger, Route, Ship, User, UserRecord, Withdrawal } from '@/types';
 
-export const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:8000/api';
+export const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE ?? 'https://shipbooking-api.onrender.com/api';
 
 export interface ApiUserPayload {
   id: number;

@@ -40,9 +40,9 @@ DATABASE_URL=mysql://USER:PASSWORD@HOST:4000/shipbooking?ssl=true
 
 ```env
 DATABASE_URL=your_tidb_connection_string
-APP_URL=https://your-frontend-domain.vercel.app
-API_PUBLIC_BASE_URL=https://your-render-service.onrender.com/api
-BACKEND_CORS_ORIGINS=https://your-frontend-domain.vercel.app,http://localhost:3000
+APP_URL=https://out-beige-tau.vercel.app
+API_PUBLIC_BASE_URL=https://shipbooking-api.onrender.com/api
+BACKEND_CORS_ORIGINS=https://out-beige-tau.vercel.app,http://localhost:3000
 SSLCOMMERZ_STORE_ID=your_store_id
 SSLCOMMERZ_STORE_PASSWORD=your_store_password
 SSLCOMMERZ_SANDBOX_MODE=True
@@ -82,7 +82,7 @@ You should see:
 3. Add this environment variable:
 
 ```env
-NEXT_PUBLIC_API_BASE=https://your-render-service.onrender.com/api
+NEXT_PUBLIC_API_BASE=https://shipbooking-api.onrender.com/api
 ```
 
 4. Deploy.

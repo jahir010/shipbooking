@@ -19,11 +19,11 @@ services:
       - key: RUN_STARTUP_SCHEMA_SYNC
         value: "False"
       - key: APP_URL
-        sync: false
+        value: https://out-beige-tau.vercel.app
       - key: API_PUBLIC_BASE_URL
-        sync: false
+        value: https://shipbooking-api.onrender.com/api
       - key: BACKEND_CORS_ORIGINS
-        sync: false
+        value: https://out-beige-tau.vercel.app,http://localhost:3000,http://127.0.0.1:3000
       - key: SSLCOMMERZ_STORE_ID
         sync: false
       - key: SSLCOMMERZ_STORE_PASSWORD
