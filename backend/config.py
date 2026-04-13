@@ -21,8 +21,12 @@ def _build_database_url() -> str:
 
     query = ""
     if db_scheme.startswith("postgres"):
-        ssl_mode = config("DB_SSLMODE", default="require" if os.getenv("RENDER") else "prefer")
-        query = f"?sslmode={ssl_mode}"
+        ssl_mode = config(
+            "DB_SSLMODE",
+            default="require" if os.getenv("RENDER") else "prefer",
+        ).strip().lower()
+        if ssl_mode in {"require", "verify-ca", "verify-full"}:
+            query = "?ssl=true"
     elif config("DB_SSL", default=False, cast=bool):
         query = "?ssl=true"
 
